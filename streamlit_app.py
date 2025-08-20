@@ -1,6 +1,5 @@
 
 import json
-import time
 from datetime import datetime
 import streamlit as st
 
@@ -26,7 +25,6 @@ def score_question(q, a):
         except Exception:
             return normalize(3) * w
     if kind == "boolean":
-        good = True
         val = 5 if a is True else 1 if a is False else 3
         return normalize(val) * w
     if kind == "select":
@@ -62,15 +60,19 @@ def pretty_label(id_):
 data = load_questions()
 DIM_WEIGHTS = data["dimensions"]
 QUESTIONS = data["questions"]
-KNOCKOUTS = data["knockouts"]
 
-st.markdown(\"\"\"\n# Hammer & Nails – Echo Park\n**Sales Associate / Member Concierge** – Candidate Fit Screener\n\n> Quality is in the details. This screener highlights hospitality, membership sales, and reliability — the core of the role.\n\"\"\")
+st.markdown("""
+# Hammer & Nails – Echo Park
+**Sales Associate / Member Concierge** – Candidate Fit Screener
+
+> Quality is in the details. This screener highlights hospitality, membership sales, and reliability — the core of the role.
+""")
 
 
 with st.form("screener"):
     answers = {}
     for q in QUESTIONS:
-        st.markdown(f\"### {q['label']}\")
+        st.markdown(f"### {q['label']}")
         if q.get("help"):
             st.caption(q["help"])
 
@@ -83,10 +85,10 @@ with st.form("screener"):
             else:
                 ans = st.text_input(" ", key=q["id"])
             if q.get("minChars"):
-                st.caption(f\"Aim for at least {q['minChars']} characters.\")
+                st.caption(f"Aim for at least {q['minChars']} characters.")
         elif kind == "likert":
             left, right = (q.get("labels") or ["Low", "High"])
-            st.write(f\"{left} ← → {right}\")
+            st.write(f"{left} ← → {right}")
             ans = st.slider(" ", 1, 5, 3, key=q["id"])
         elif kind == "select":
             options = [o["label"] for o in q.get("options", [])]
@@ -97,10 +99,11 @@ with st.form("screener"):
                 idx = options.index(label)
                 ans = values[idx]
         elif kind == "boolean":
-            ans = st.toggle(q["label"], value=False, key=q["id"])
+            # Use checkbox to avoid duplicate labels in header + toggle
+            ans = st.checkbox("Yes", value=False, key=q["id"])
         elif kind == "sjt":
             st.write(q["scenario"])
-            choices = [f\"{c['key']}: {c['label']}\" for c in q.get("choices", [])]
+            choices = [f"{c['key']}: {c['label']}" for c in q.get("choices", [])]
             keys = [c["key"] for c in q.get("choices", [])]
             picked = st.radio("Choose one", choices, index=None, key=q["id"])
             ans = keys[choices.index(picked)] if picked is not None else None
@@ -111,14 +114,11 @@ with st.form("screener"):
     submitted = st.form_submit_button("Review scorecard")
 
 if submitted:
-    # Knockout check
     failed = []
-    # evenings/weekends
     if not answers.get("availability_evenings", False):
         failed.append("availability_evenings")
     if not answers.get("availability_weekends", False):
         failed.append("availability_weekends")
-    # sales comfort
     sc = answers.get("sales_comfort", 3) or 3
     try:
         sc = int(sc)
@@ -127,7 +127,6 @@ if submitted:
     if sc < 3:
         failed.append("sales_comfort")
 
-    # Scoring per dimension
     dim_totals = {}
     dim_weights = {}
     for q in QUESTIONS:
@@ -144,7 +143,6 @@ if submitted:
         wsum = sum(DIM_WEIGHTS.get(d, 1.0) for d in dim_scores)
         overall = round(ssum / wsum)
 
-    # Tier
     if failed:
         tier = ("Review (Knockout unmet)", "yellow")
     elif overall >= 85:
@@ -160,7 +158,7 @@ if submitted:
 
     with st.expander("Strengths by dimension"):
         for d, v in sorted(dim_scores.items(), key=lambda kv: kv[1], reverse=True):
-            st.write(f\"**{d}** — {v}\") 
+            st.write(f"**{d}** — {v}")
             st.progress(v/100)
 
     with st.expander("Knockouts"):
@@ -171,11 +169,11 @@ if submitted:
                 st.write(f":warning: {pretty_label(k)}")
 
     with st.expander("Candidate Details"):
-        st.write(f\"**Name:** {answers.get('name') or '—'}\") 
-        st.write(f\"**Email:** {answers.get('email') or '—'}\") 
+        st.write(f"**Name:** {answers.get('name') or '—'}")
+        st.write(f"**Email:** {answers.get('email') or '—'}")
 
-    st.markdown(\"### Suggested Interview Probes\") 
-    st.markdown(\"- Walk me through how you’d convert a happy first‑time guest into a member.\\n- Tell me about a time you balanced phone, walk‑in, and stylist support simultaneously.\\n- How do you keep the lobby immaculate during peak times?\\n- Describe a time you received coaching that changed your approach at the front desk.\")
+    st.markdown("### Suggested Interview Probes")
+    st.markdown("- Walk me through how you’d convert a happy first‑time guest into a member.\n- Tell me about a time you balanced phone, walk‑in, and stylist support simultaneously.\n- How do you keep the lobby immaculate during peak times?\n- Describe a time you received coaching that changed your approach at the front desk.")
 
     payload = {
         "answers": answers,
@@ -186,4 +184,3 @@ if submitted:
         "location": "Hammer & Nails – Echo Park"
     }
     st.download_button("Download JSON", data=json.dumps(payload, indent=2), file_name=f"H&N-EP-candidate-{answers.get('email','anonymous')}.json", mime="application/json")
-
